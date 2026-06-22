@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/Tobii.Interaction.nuspec" Id="R444ce5224ae748c4" />
+    <Relationship Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="/package/services/metadata/core-properties/e6feed7c8dc140b08a8b1375f46b45a7.psmdcp" Id="Ra2e26b2b1b0a49e8" />
+</Relationships>

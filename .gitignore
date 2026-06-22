@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+
+# Test / tooling caches
+.pytest_cache/
+.codegraph/
+.claude/
+
+# Runtime artifact — auto-copied from tobiiFundamental/ by _ensure_x64_dll()
+Tobii.EyeX.Client.dll
+
+# Experiment data and debug logs (not source code)
+data/
+src/data/
+*.log
+
+# Virtual environments
+.venv/
+venv/
+env/

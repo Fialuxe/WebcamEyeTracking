@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <id>Tobii.Interaction</id>
+    <version>0.7.3</version>
+    <title>Tobii Core SDK</title>
+    <authors>Tobii Interaction Engine team</authors>
+    <owners>Tobii AB</owners>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <licenseUrl>http://developer.tobii.com/wp-content/uploads/2017/06/Tobii_Core_SDK_and_Gaming_SDK_License_Agreement_v_2.pdf</licenseUrl>
+    <projectUrl>https://developer.tobii.com/</projectUrl>
+    <iconUrl>https://files.update.tech.tobii.com/assets/Favicon_for_web_20170308-128x128-01.png</iconUrl>
+    <description>Adds eye-tracking to your application to make it more interactive.</description>
+    <copyright>Copyright (c) Tobii AB</copyright>
+    <tags>Tobii CoreSdk eyetracking wpf .NET</tags>
+  </metadata>
+</package>
