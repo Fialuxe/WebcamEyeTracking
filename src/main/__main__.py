@@ -248,6 +248,7 @@ def main() -> None:
                     osc.send_message("/experiment/ack", ["calibration_start", "error: already calibrating"])
                     return
                 _calibrating[0] = True
+                osc.send_message("/calibration/started", [])
                 # Reset accumulated points so a retry starts clean
                 webcam_source.calibration.reset()
                 from .ui.calib_window import run_calibration
@@ -303,13 +304,7 @@ def main() -> None:
 
             main_win.calib_panel.set_callback(_do_calibration)
 
-            # /calibration/start from Unity triggers the same dialog on Tk thread
-            osc_receiver.set_handler(
-                "/calibration/start",
-                lambda: root.after(0, _do_calibration),
-            )
-
-            # /calibration/abort from Unity — cancel in-progress calibration window
+            # /calibration/abort: cancel any in-progress local calibration window
             def _abort_calibration() -> None:
                 win = _active_calib_win[0]
                 if win is not None:
@@ -318,6 +313,73 @@ def main() -> None:
             osc_receiver.set_handler(
                 "/calibration/abort",
                 lambda: root.after(0, _abort_calibration),
+            )
+
+            # ── Unity-driven calibration ──────────────────────────────────────
+            # Unity shows the calibration dots and drives timing.
+            # Python only captures gaze on demand and fits the model.
+
+            def _on_calib_reset() -> None:
+                webcam_source.calibration.reset()
+                _log.info("Unity-driven calibration reset.")
+
+            def _on_calib_sample(target_x: float, target_y: float) -> None:
+                local = webcam_source.get_local_gaze()
+                if local is None:
+                    _log.debug("calibration/sample: face not detected — skipping")
+                    return
+                webcam_source.calibration.add_point(local[0], local[1], target_x, target_y)
+
+            def _on_calib_compute() -> None:
+                result = webcam_source.calibration.fit()
+                _safe = lambda v: v if (v == v and abs(v) != float("inf")) else -1.0
+                safe_x = _safe(result.validation_error_x)
+                safe_y = _safe(result.validation_error_y)
+                if (result.success
+                        and result.validation_error_x <= config.CALIB_THRESHOLD_X
+                        and result.validation_error_y <= config.CALIB_THRESHOLD_Y):
+                    quality = 2
+                elif result.success:
+                    quality = 1
+                else:
+                    quality = 0
+                if main_win is not None:
+                    main_win.calib_panel.show_result(
+                        result.success, result.validation_error_x, result.validation_error_y)
+                if result.success and pipeline is not None:
+                    pipeline.mark_calibrated()
+                osc.send_calibration_result(quality, safe_x, safe_y)
+                calib_meta = {
+                    "participant_id": pid,
+                    "condition": condition,
+                    "session_id": session.session_id,
+                    "calib_success": result.success,
+                    "calib_aborted": False,
+                    "calib_err_x": round(safe_x, 6),
+                    "calib_err_y": round(safe_y, 6),
+                    "calib_threshold_x": config.CALIB_THRESHOLD_X,
+                    "calib_threshold_y": config.CALIB_THRESHOLD_Y,
+                    "calib_ts": datetime.datetime.now().isoformat(),
+                }
+                meta_path = csv_path.replace(".csv", "_meta.json")
+                try:
+                    import json
+                    with open(meta_path, "w", encoding="utf-8") as f:
+                        json.dump(calib_meta, f, indent=2)
+                except OSError:
+                    pass
+
+            osc_receiver.set_handler(
+                "/calibration/reset",
+                lambda: root.after(0, _on_calib_reset),
+            )
+            osc_receiver.set_handler(
+                "/calibration/sample",
+                lambda tx, ty: root.after(0, lambda x=tx, y=ty: _on_calib_sample(x, y)),
+            )
+            osc_receiver.set_handler(
+                "/calibration/compute",
+                lambda: root.after(0, _on_calib_compute),
             )
 
         elif not _is_no_gaze:
@@ -428,6 +490,7 @@ def main() -> None:
             "/experiment/trial_start", "/experiment/trial_end",
             "/experiment/session_end",
             "/calibration/start", "/calibration/abort",
+            "/calibration/reset", "/calibration/sample", "/calibration/compute",
         ):
             osc_receiver.remove_handler(addr)
         root.withdraw()

@@ -5,13 +5,16 @@ Routes incoming OSC messages from Unity to registered callbacks and sends
 acknowledgements back via OSCSender.
 
 OSC routes handled:
-  /session/start           [participant_id: str] [condition: str]
-  /experiment/trial_start  [trial_id: str]
+  /session/start              [participant_id: str] [condition: str]
+  /experiment/trial_start     [trial_id: str]
   /experiment/trial_end
   /experiment/session_end
   /gaze/query
-  /calibration/start
+  /calibration/start          (legacy — opens local Tkinter window; deprecated)
   /calibration/abort
+  /calibration/reset          (Unity-driven flow: clear accumulated points)
+  /calibration/sample         [target_x: float] [target_y: float]
+  /calibration/compute        (fit model, send /calibration/result)
   /ping
 """
 from __future__ import annotations
@@ -84,8 +87,11 @@ class OSCReceiver:
         dispatcher.map("/experiment/trial_end", self._handle_trial_end)
         dispatcher.map("/experiment/session_end", self._handle_session_end)
         dispatcher.map("/gaze/query", self._handle_gaze_query)
-        dispatcher.map("/calibration/start", self._handle_calibration_start)
-        dispatcher.map("/calibration/abort", self._handle_calibration_abort)
+        dispatcher.map("/calibration/start",   self._handle_calibration_start)
+        dispatcher.map("/calibration/abort",   self._handle_calibration_abort)
+        dispatcher.map("/calibration/reset",   self._handle_calibration_reset)
+        dispatcher.map("/calibration/sample",  self._handle_calibration_sample)
+        dispatcher.map("/calibration/compute", self._handle_calibration_compute)
         dispatcher.map("/ping", self._handle_ping)
 
         self._server = ThreadingOSCUDPServer(
@@ -192,6 +198,40 @@ class OSCReceiver:
             self._send_ack("calibration_abort", "ok")
         except Exception as exc:
             self._send_ack("calibration_abort", f"error: {exc}")
+
+    def _handle_calibration_reset(self, address: str, *args) -> None:
+        """Unity-driven flow: clear accumulated calibration points."""
+        try:
+            self._fire_handler(address)
+            self._send_ack("calibration_reset", "ok")
+        except Exception as exc:
+            self._send_ack("calibration_reset", f"error: {exc}")
+
+    def _handle_calibration_sample(self, address: str, *args) -> None:
+        """Unity-driven flow: capture one gaze sample for target (x, y).
+
+        High-frequency (every ~100 ms during dwell); skipped silently if no
+        handler is registered (non-webcam session).  No ACK — too chatty.
+        """
+        if self._handlers.get(address) is None:
+            return
+        target_x = float(args[0]) if len(args) > 0 else 0.5
+        target_y = float(args[1]) if len(args) > 1 else 0.5
+        try:
+            self._fire_handler(address, target_x, target_y)
+        except Exception as exc:
+            _log.warning("calibration_sample handler error: %s", exc)
+
+    def _handle_calibration_compute(self, address: str, *args) -> None:
+        """Unity-driven flow: fit the Ridge model and send /calibration/result."""
+        if self._handlers.get(address) is None:
+            self._send_ack("calibration_compute", "error: no handler")
+            return
+        try:
+            self._fire_handler(address)
+            self._send_ack("calibration_compute", "ok")
+        except Exception as exc:
+            self._send_ack("calibration_compute", f"error: {exc}")
 
     def _handle_ping(self, address: str, *args) -> None:
         if not self._sender.is_alive:
