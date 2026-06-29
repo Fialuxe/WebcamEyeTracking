@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-VALID_CONDITIONS = frozenset({"IR", "Webcam", "WebcamFiltered", "NoGaze"})
+VALID_CONDITIONS = frozenset({"IR", "Webcam", "WebcamFiltered", "NoGaze", "Demo"})
 _FORMULA_CHARS = frozenset("=+-@")
 
 

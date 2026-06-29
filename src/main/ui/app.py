@@ -388,7 +388,11 @@ class MainWindow:
         try:
             from PIL import Image
         except ImportError:
-            return  # preview unavailable without Pillow
+            self.canvas.create_text(
+                240, 180, text="Preview unavailable\npip install Pillow",
+                fill="red", font=("Arial", 14), justify="center",
+            )
+            return
 
         self._preview_img_ref = None  # keep reference to prevent GC
         # Plain Python bool: safe to read from camera thread (GIL-atomic).

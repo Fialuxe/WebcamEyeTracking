@@ -115,6 +115,41 @@ class MockGazeSource(GazeSource):
             time.sleep(1 / 60)
 
 
+class DemoGazeSource(GazeSource):
+    """Fixed center gaze source for Demo mode — emits (0.5, 0.5) with certainty=1.0 at ~30 Hz."""
+
+    def __init__(self) -> None:
+        self._thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
+
+    def start(self, out_queue: queue.Queue) -> None:
+        self._stop_event.clear()
+        self._thread = threading.Thread(
+            target=self._run, args=(out_queue,), daemon=True, name="demo-gaze"
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=1.0)
+
+    def _run(self, out_queue: queue.Queue) -> None:
+        while not self._stop_event.is_set():
+            sample = GazeSample(
+                x=0.5,
+                y=0.5,
+                mesh_certainty=1.0,
+                eye_certainty=1.0,
+                source="demo",
+                condition="Demo",
+                ts_wall_ms=time.time() * 1000,
+                ts_mono_ns=time.monotonic_ns(),
+            )
+            _put_drop_oldest(out_queue, sample)
+            time.sleep(1 / 30)
+
+
 def _put_drop_oldest(q: queue.Queue, item) -> None:
     """Put item into queue; if full, drop oldest then retry."""
     try:

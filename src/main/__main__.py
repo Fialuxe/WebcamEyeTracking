@@ -182,12 +182,16 @@ def main() -> None:
 
         webcam_source = None
         _is_no_gaze = (condition == "NoGaze")
+        _is_demo = (condition == "Demo")
 
         if _is_no_gaze:
             # NoGaze: IR hardware present but we deliberately do not connect
             # to any gaze SDK, so no samples are recorded.
             # Write session meta immediately (no calibration event will fire).
             _write_no_gaze_meta(pid, condition, session, csv_path)
+        elif _is_demo:
+            from .gaze.base import DemoGazeSource
+            pipeline.add_source(DemoGazeSource())
         elif args.mock:
             pipeline.add_source(MockGazeSource(source="ir", condition=condition))
             if not args.no_webcam and condition in ("Webcam", "WebcamFiltered"):
@@ -241,6 +245,8 @@ def main() -> None:
         # 2. Calibration button + OSC /calibration/start (only for webcam conditions)
         if _is_no_gaze:
             main_win.calib_panel.set_not_applicable("NoGaze: 視線追跡なし")
+        elif _is_demo:
+            main_win.calib_panel.set_not_applicable("Demo: キャリブレーション不要")
         elif webcam_source is not None:
             def _do_calibration():
                 if _calibrating[0]:
@@ -331,6 +337,7 @@ def main() -> None:
                 webcam_source.calibration.add_point(local[0], local[1], target_x, target_y)
 
             def _on_calib_compute() -> None:
+                _log.info("calibration/compute: %d points collected", webcam_source.calibration.point_count)
                 result = webcam_source.calibration.fit()
                 _safe = lambda v: v if (v == v and abs(v) != float("inf")) else -1.0
                 safe_x = _safe(result.validation_error_x)
@@ -343,6 +350,11 @@ def main() -> None:
                     quality = 1
                 else:
                     quality = 0
+                _log.info(
+                    "calibration/compute: success=%s err_x=%.3f err_y=%.3f quality=%d (threshold %.2f/%.2f)",
+                    result.success, safe_x, safe_y, quality,
+                    config.CALIB_THRESHOLD_X, config.CALIB_THRESHOLD_Y,
+                )
                 if main_win is not None:
                     main_win.calib_panel.show_result(
                         result.success, result.validation_error_x, result.validation_error_y)
@@ -382,7 +394,7 @@ def main() -> None:
                 lambda: root.after(0, _on_calib_compute),
             )
 
-        elif not _is_no_gaze:
+        elif not _is_no_gaze and not _is_demo:
             # IR condition: hardware tracks but no calibration step
             main_win.calib_panel.set_not_applicable("IR: no calibration step")
 
